@@ -19,6 +19,9 @@ RSS_FEEDS = {
 # フィルタリングキーワード（いずれか1つでも含まれれば対象）
 KEYWORDS = ["エゾシカ", "鹿", "ジビエ", "狩猟", "害獣", "駆除", "北海道"]
 
+# 除外キーワード（いずれか1つでも含まれれば除外）
+EXCLUDE_KEYWORDS = ["鹿児島", "鹿屋", "鹿沼", "鹿嶋", "鹿島"]
+
 # スプレッドシートのシート名
 SHEET_NAME = "収集"
 
@@ -69,11 +72,12 @@ def get_existing_urls(sheet: gspread.Worksheet) -> set:
 
 
 def matches_keywords(text: str) -> bool:
-    """タイトルまたは本文がフィルタリングキーワードを含むか判定する。"""
-    for keyword in KEYWORDS:
-        if keyword in text:
-            return True
-    return False
+    """キーワードを含み、除外キーワードを含まない場合に True を返す。"""
+    if not any(keyword in text for keyword in KEYWORDS):
+        return False
+    if any(keyword in text for keyword in EXCLUDE_KEYWORDS):
+        return False
+    return True
 
 
 def parse_feed(media_name: str, url: str) -> list[dict]:
