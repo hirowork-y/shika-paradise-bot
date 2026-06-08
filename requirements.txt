@@ -1,0 +1,4 @@
+feedparser==6.0.11
+gspread==6.1.2
+google-auth==2.29.0
+tweepy==4.14.0
