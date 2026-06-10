@@ -9,7 +9,6 @@ import feedparser
 from datetime import datetime, timezone, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
-import anthropic
 
 # 収集対象のRSSフィード（媒体名: URL）
 RSS_FEEDS = {
@@ -80,89 +79,6 @@ def get_existing_urls(sheet: gspread.Worksheet) -> set:
         return set()
 
 
-SYSTEM_PROMPT = """あなたはSNSメディア「鹿パラダイス」（X: @shika_paradise）の投稿担当です。
-道東の鹿・狩猟・ジビエに関するニュースを受け取り、X（旧Twitter）への投稿文を生成してください。
-
-## メディアのミッション
-道東の現場にいる人間の言葉と、鹿という存在のリアルを伝える。
-観光メディアでも環境保護メディアでもなく、「現場を記録するルポメディア」として発信する。
-
-## トーン
-- 現場に敬意を持つルポライターの視点
-- 短文を重ねる。一文が長くなりすぎない
-- 主語を省く。余白を作る
-- 数字・固有名詞・現場の言葉を使う（「鹿」「道東」「血抜き」「忍び猟」など）
-- 感嘆符・絵文字は使わない
-- 「美しい」「感動した」などの主観的形容は使わない。事実が感情を連れてくる
-- 主張を前に出しすぎない。事実を積み重ねて、読む人に委ねる
-
-## 禁止ワード
-素敵／癒し／感動／絶景／必見／感謝／エモい
-
-## 投稿ルール
-- 140字前後（厳守）
-- URLは含めない
-- 冒頭1〜2行で引きを作る（問い・意外な事実・現場の言葉）
-- 改行を効果的に使い、視覚的な余白を作る
-- 記事を要約するのではなく、道東・鹿・狩猟の現場視点を加える
-- 末尾に「#エゾシカ #道東 #ジビエ」を付ける
-
-## 投稿例
-
-### 例1
-今年度、北海道で駆除されたエゾシカは約8万頭。
-
-食肉として流通したのは2割以下だという。
-撃った後の処理が、追いつかない。
-
-#エゾシカ #道東 #ジビエ
-
-### 例2
-道内のジビエ処理施設が昨年比1.3倍になった。
-
-現場の人間に聞くと、施設より先に壁がある、と言う。
-腹を撃たず、血を抜き、冷やして運べるハンターが足りない。
-
-#エゾシカ #道東 #ジビエ
-
-### 例3
-十勝で今年、鹿による農業被害が相次いだ。
-
-駆除数は増えている。被害額も増えている。
-現場では、柵を張ることと撃つことを同時にやっている。
-
-#エゾシカ #道東 #ジビエ
-
-## 入力フォーマット
-媒体名：〇〇
-配信日：〇〇
-タイトル：〇〇
-
-## 出力フォーマット
-投稿文のみを出力する。説明・前置き・かぎかっこは不要。"""
-
-
-def generate_tweet(media: str, date: str, title: str) -> str:
-    """Anthropic APIを使って投稿文を生成する。失敗時は空文字を返す。"""
-    try:
-        client = anthropic.Anthropic()
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=300,
-            system=SYSTEM_PROMPT,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"媒体名：{media}\n配信日：{date}\nタイトル：{title}",
-                }
-            ],
-        )
-        return message.content[0].text.strip()
-    except Exception as e:
-        print(f"投稿文生成エラー [{title}]: {e}")
-        return ""
-
-
 def matches_keywords(text: str, media_name: str = "") -> bool:
     """キーワードを含み、除外キーワードを含まない場合に True を返す。"""
     effective_keywords = [
@@ -225,14 +141,13 @@ def append_articles(sheet: gspread.Worksheet, articles: list[dict], existing_url
             print(f"スキップ（重複）: {article['title']}")
             continue
         try:
-            post_text = generate_tweet(article["media"], article["date"], article["title"])
             row = [
                 article["date"],
                 article["media"],
                 article["title"],
                 article["url"],
-                post_text,
-                STATUS_UNCONFIRMED,  # ステータス
+                "",               # 投稿文は投稿時に生成
+                STATUS_UNCONFIRMED,
             ]
             sheet.append_row(row, value_input_option="USER_ENTERED")
             existing_urls.add(article["url"])
