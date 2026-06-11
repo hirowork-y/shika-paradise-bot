@@ -18,6 +18,10 @@ RSS_FEEDS = {
     "日本農業新聞": "https://www.agrinews.co.jp/feed",
     "朝日新聞": "https://www.asahi.com/rss/asahi/newsheadlines.rdf",
     "毎日新聞": "https://mainichi.jp/rss/etc/mainichi-flash.rss",
+    # Google Newsキーワード検索フィード（検索済みのため全件収集）
+    "Google News（エゾシカ）": "https://news.google.com/rss/search?q=エゾシカ&hl=ja&gl=JP&ceid=JP:ja",
+    "Google News（ジビエ）": "https://news.google.com/rss/search?q=ジビエ+北海道&hl=ja&gl=JP&ceid=JP:ja",
+    "Google News（鹿肉）": "https://news.google.com/rss/search?q=鹿肉+北海道&hl=ja&gl=JP&ceid=JP:ja",
 }
 
 # フィルタリングキーワード（いずれか1つでも含まれれば対象）
@@ -29,6 +33,9 @@ EXCLUDE_KEYWORDS = ["鹿児島", "鹿屋", "鹿沼", "鹿嶋", "鹿島"]
 # 「北海道」キーワードを除外する媒体（北海道新聞は全記事が北海道のため）
 EXCLUDE_BROAD_KEYWORD_SOURCES = {"北海道新聞"}
 BROAD_KEYWORD = "北海道"
+
+# キーワードフィルターをスキップする媒体（Google News検索フィードは検索済みのため不要）
+SKIP_KEYWORD_FILTER_SOURCES = {"Google News（エゾシカ）", "Google News（ジビエ）", "Google News（鹿肉）"}
 
 # スプレッドシートのシート名
 SHEET_NAME = "収集"
@@ -97,6 +104,7 @@ def parse_feed(media_name: str, url: str) -> list[dict]:
     RSSフィードを取得・解析し、記事情報のリストを返す。
     エラーが発生しても空リストを返してクラッシュを防ぐ。
     """
+    skip_filter = media_name in SKIP_KEYWORD_FILTER_SOURCES
     articles = []
     try:
         feed = feedparser.parse(url)
@@ -105,9 +113,15 @@ def parse_feed(media_name: str, url: str) -> list[dict]:
             summary = entry.get("summary", "")
             link = entry.get("link", "")
 
-            # タイトルまたは要約にキーワードが含まれるか確認
-            if not matches_keywords(title + summary, media_name):
+            # Google News検索フィードはすでにキーワード検索済みのためフィルター不要
+            if not skip_filter and not matches_keywords(title + summary, media_name):
                 continue
+
+            # Google Newsはentryのsourceフィールドから実際の媒体名を取得
+            if skip_filter:
+                actual_media = entry.get("source", {}).get("title", media_name)
+            else:
+                actual_media = media_name
 
             # 公開日時を取得（なければ現在時刻を使用）
             published = entry.get("published_parsed")
@@ -119,7 +133,7 @@ def parse_feed(media_name: str, url: str) -> list[dict]:
 
             articles.append({
                 "date": date_str,
-                "media": media_name,
+                "media": actual_media,
                 "title": title,
                 "url": link,
             })
