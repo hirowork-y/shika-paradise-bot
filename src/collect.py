@@ -149,28 +149,32 @@ def append_articles(sheet: gspread.Worksheet, articles: list[dict], existing_url
     既に登録済みのURLはスキップする。
     追記した件数を返す。
     """
-    added_count = 0
+    new_rows = []
     for article in articles:
         if article["url"] in existing_urls:
-            print(f"スキップ（重複）: {article['title']}")
             continue
-        try:
-            row = [
-                article["date"],
-                article["media"],
-                article["title"],
-                article["url"],
-                "",               # 投稿文は投稿時に生成
-                STATUS_UNCONFIRMED,
-            ]
-            sheet.append_row(row, value_input_option="USER_ENTERED")
-            existing_urls.add(article["url"])
-            added_count += 1
-            print(f"追加: {article['title']}")
-        except Exception as e:
-            print(f"追記エラー [{article['title']}]: {e}")
+        new_rows.append([
+            article["date"],
+            article["media"],
+            article["title"],
+            article["url"],
+            "",               # 投稿文は投稿時に生成
+            STATUS_UNCONFIRMED,
+        ])
+        existing_urls.add(article["url"])
 
-    return added_count
+    if not new_rows:
+        return 0
+
+    try:
+        sheet.append_rows(new_rows, value_input_option="USER_ENTERED")
+        for row in new_rows:
+            print(f"追加: {row[2]}")
+    except Exception as e:
+        print(f"追記エラー: {e}")
+        return 0
+
+    return len(new_rows)
 
 
 def main():
